@@ -1,0 +1,279 @@
+@import url('https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap');
+body {
+    display: flex;
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(to bottom, #e6c692 0px, #e6c692 35px, #f0d1a0 35px, #f0d1a0 100%);
+    font-family: "Ubuntu", sans-serif;
+        font-weight: 400;
+        font-style: normal;
+    overflow: hidden;
+    padding-top: 35px;
+    /* -webkit-app-region: drag; */
+}
+.drag-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 35px;
+    background-color: #e6c692;
+    -webkit-app-region: drag;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color:#4a3e2f;
+    font-weight: 500;
+}
+#sidebar,
+#channel-list,
+#message-list {
+    overflow-y: auto;
+    /* padding-bottom: 35px; */
+}
+#sidebar {
+    width: 60px;
+    background-color: #e6c692; /* Optional: change color */
+    height: 100vh;
+    padding: 5px;
+    padding-bottom: 35px;
+    box-sizing: border-box;
+}
+#sidebar #me {
+    width: 50px;
+    height: 50px;
+    border-radius: 10px;
+    cursor: pointer;
+    box-sizing: border-box;
+    border: 3px solid #d1ae75;
+    scrollbar-width: none;       /* Firefox */
+    -ms-overflow-style: none;    /* IE 10+ */
+}
+#sidebar::-webkit-scrollbar {
+    display: none;
+}
+
+#sidebar .spacer {
+    height: 4px;
+    width: 30px;
+    background-color: #ffebd1;
+    border-radius: 2px;
+    margin-left: 10px;
+    margin-top: 5px;
+    margin-right: 10px;
+    margin-bottom: 10px;
+}
+#sidebar .guild {
+    width: 40px;
+    height: 40px;
+    border-radius: 25%;
+    cursor: pointer;
+    box-sizing: border-box;
+    margin-left: 5px;
+    margin-bottom: 5px;
+}
+#sidebar .guild.selected {
+    width: 45px;
+    height: 45px;
+    border-radius: 25%;
+    cursor: pointer;
+    box-sizing: border-box;
+    margin-left: 2px;
+    margin-bottom: 2px;
+    margin-top: -2px;
+    border: 3px solid #d1ae75;
+}
+#channel-list {
+    width: 240px;
+    background-color: #ebcc99; /* Optional: change color */
+    height: 100vh;
+    padding: 5px;
+    padding-bottom: 35px;
+    box-sizing: border-box;
+}
+#channel-list .channel {
+    width: 99%;
+    height: 30px;
+    border-radius: 5px;
+    cursor: pointer;
+    box-sizing: border-box;
+    padding: 5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+    color: #4a3e2f;
+    padding-left: 10px;
+    margin-left: 2px;
+
+}
+#channel-list .category {
+    width: 99%;
+    padding-top:15px;
+    padding-bottom: 0px;
+    height: 20px;
+    border-radius: 5px;
+    box-sizing: border-box;
+    padding: 5px;
+    margin-bottom: 5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: #4a3e2f;
+    font-weight: 500;
+    text-decoration: underline;
+    
+}
+#channel-list .selected {
+    background-color: #e0bf95 !important; /* Optional: change color */
+}
+#channel-list .channel:hover {
+    background-color: #d9b88c; /* Optional: change color */
+}
+#message-list {
+  flex: 1;               /* take all remaining horizontal & vertical space */
+  height: 100vh;
+  width: calc(100vw - 300px);
+  flex-direction: column;
+  overflow-y: auto;      /* now it has a real height to scroll within */
+  padding-bottom: 120px !important;
+  box-sizing: border-box;
+}
+#message-list::-webkit-scrollbar {
+    width: 8px;
+}
+#message-list::-webkit-scrollbar-thumb {
+    background-color: #d1ae75;
+    border-radius: 10px;
+}
+#message-list::-webkit-scrollbar-track {
+    background-color: #f0d1a0;
+    border-radius: 10px;
+}
+#message-list .message {
+    padding: 8px 16px;
+    /* border-bottom: 1px solid #e3cba3; */
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    transition: background 0.15s;
+}
+#message-list .message .content .role-icon {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    object-fit: cover;
+    vertical-align: middle;
+}
+#message-list .message:hover {
+    background: #f7e6c7;
+}
+#message-list .message .avatar-wrapper .avatar-decoration {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 36px;
+    height: 36px;
+    pointer-events: none;
+    z-index: 2;
+}
+#message-list .message .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    margin-top: 2px;
+    flex-shrink: 0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+}
+#message-list .message .content {
+    flex: 1;
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+}
+#message-list .message .content .author {
+    font-weight: 500;
+    color: #6e5532;
+    font-size: 14px;
+    margin-right: 8px;
+    display: inline-block;
+}
+#message-list .message .content .timestamp {
+    font-size: 12px;
+    color: #b8a47a;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+#message-list .message .content .text {
+    font-size: 14px;
+    color: #3a2e1c;
+    margin-top: 2px;
+    word-break: break-word;
+    white-space: pre-line;
+}
+#message-list .message .avatar-wrapper {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+}
+
+#message-list .message .avatar-wrapper .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+    position: relative;
+    z-index: 1;
+}
+#chat-input-wrapper {
+    position: fixed;
+    bottom: 0;
+    left: 300px; /* width of your sidebar + channel list */
+    right: 0;
+    padding: 12px 16px;
+    background-color: #f0d1a0;
+    /* border-top: 1px solid #d1ae75; */
+    box-sizing: border-box;
+    z-index: 10;
+    height: 85px;
+}
+
+#chat-input {
+    width: 100%;
+    max-height: 150px;
+    min-height: 44px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: none;
+    resize: vertical;
+    font-size: 14px;
+    line-height: 1.4;
+    font-family: "Ubuntu", sans-serif;
+    background-color: #fff6e5;
+    color: #3a2e1c;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1) inset;
+    outline: none;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+#chat-input::placeholder {
+    color: #a78c68;
+}
+blockquote {
+    margin: 0;
+    padding: 0 10px;
+    border-left: 4px solid #d1ae75;
+    color: #6e5532;
+    font-style: italic;
+    /* background-color: #f7e6c7; */
+    border-radius: 4px;
+}
