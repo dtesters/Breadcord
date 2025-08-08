@@ -3,9 +3,12 @@
   "version": "1.0.0",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "package-macos": "electron-packager . Breadcord --platform=darwin --arch=x64,arm64 --icon=logo.icns --out=dist --overwrite",
+    "package-win": "electron-packager . Breadcord --platform=win32 --arch=x64,arm64 --icon=logo.ico --out=dist --overwrite"
   },
   "devDependencies": {
-    "electron": "^37.2.5"
+    "electron": "^37.2.6",
+    "electron-packager": "^17.1.2"
   }
 }
