@@ -21,7 +21,7 @@ function createWindow() {
         app.dock.setIcon(icon);
     }
 
-    win.webContents.openDevTools({ mode: 'detach' });
+    // win.webContents.openDevTools({ mode: 'detach' });
 
     win.loadFile('index.html');
     win.setMenuBarVisibility(false);
