@@ -728,7 +728,7 @@ function rendermessage(data) {
         const ctx = document.createElement('div');
         ctx.className = 'reply-context';
         const ra = data.referenced_message.author || {};
-        ctx.textContent = `Replying to ${ra.global_name || ra.username || 'Unknown'}: ${(data.referenced_message.content || '').slice(0, 80)}`;
+        ctx.textContent = `@${ra.global_name || ra.username || 'Unknown'}: ${(data.referenced_message.content || '').slice(0, 80)}`;
         contentWrapper.appendChild(ctx);
     }
 
