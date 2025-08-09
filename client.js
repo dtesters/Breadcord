@@ -1,24 +1,8 @@
 // war crimes have been committed in the making of this code
 // i speedran ts in around 4 hours dont expect it to be good
 
-var PLATFORM = null;
-window.electronAPI.sendMessage('toMain', { code: 'platform_request' });
-
 // lazy auth
 if (!localStorage.getItem('token')) {
-
-    // wait until PLATFORM is not null
-    const checkPlatform = () => {
-        if (PLATFORM !== null) {
-            if (PLATFORM.startsWith('win')) {
-                window.electronAPI.sendMessage('toMain', { code: 'search_for_discord_installs' });
-            }
-        } else {
-            setTimeout(checkPlatform, 50);
-        }
-    };
-    checkPlatform();
-
     const modal = document.createElement('div');
     modal.style.position = 'fixed';
     modal.style.top = '0';
@@ -31,7 +15,7 @@ if (!localStorage.getItem('token')) {
     modal.style.justifyContent = 'center';
     modal.style.zIndex = '9999';
 
-    var box = document.createElement('div');
+    const box = document.createElement('div');
     box.style.background = '#c2a679';
     box.style.padding = '24px';
     box.style.borderRadius = '12px';
@@ -87,35 +71,6 @@ if (!localStorage.getItem('token')) {
     });
 }
 
-window.electronAPI.onMessage('fromMain', (data) => {
-    if (data.code === 'platform_response') {
-        PLATFORM = data.platform;
-    }
-    if (data.code === 'autoimport_token_response') {
-        localStorage.setItem('token', data.token);
-        location.reload();
-    }
-    if (data.code === 'discord_installs_response') {
-        if (data.found) {
-            const button = document.createElement('button');
-            button.textContent = 'Auto Import';
-            button.style.padding = '8px 16px';
-            button.style.background = '#dba570ff';
-            button.style.color = '#fff8e1';
-            button.style.border = 'none';
-            button.style.borderRadius = '6px';
-            button.style.cursor = 'pointer';
-            button.style.fontWeight = 'bold';
-            button.style.boxShadow = '0 1px 4px rgba(90, 60, 30, 0.2)';
-            box.appendChild(button);
-
-            button.addEventListener('click', () => {
-                window.electronAPI.sendMessage('toMain', { code: 'autoimport_token' });
-            });
-        }
-    }
-});
-
 const log = (msg) => { document.getElementById('log').textContent += msg + '\n'; };
 
 const GATEWAY_URL = 'wss://gateway.discord.gg/?v=10&encoding=json';
@@ -130,12 +85,416 @@ var USER_RELATIONSHIPS = []
 var USER_GUILDS = []
 var PRIVATE_CHANNELS = []
 var CURRENT_CHANNEL = null;
+var CURRENT_GUILD_ID = null;
+var USER_PRESENCES = {};
+var CHANNEL_TYPING = {};
+var LAST_TYPING_SENT_AT = 0;
 var savedGuildId = localStorage.getItem('lastGuildId');
 var savedChannelId = localStorage.getItem('lastChannelId');
 
 var AVATAR_BASE_URL = 'https://cdn.discordapp.com/avatars/';
 
 const sidebar = document.getElementById('sidebar');
+
+function applyUserPreferences() {
+  try {
+    const fontSize = localStorage.getItem('pref:fontSize');
+    if (fontSize) {
+      const old = document.getElementById('bc-font-style');
+      if (old) old.remove();
+      const style = document.createElement('style');
+      style.id = 'bc-font-style';
+      style.textContent = `#message-list .message .content .text{font-size:${fontSize}px !important}`;
+      document.head.appendChild(style);
+    }
+  } catch (_) {}
+}
+
+function openModal(title, contentNode) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  const header = document.createElement('div');
+  header.className = 'modal-header';
+  const h = document.createElement('div');
+  h.className = 'modal-title';
+  h.textContent = title;
+  const close = document.createElement('button');
+  close.className = 'close-btn';
+  close.textContent = '✕';
+  close.addEventListener('click', () => document.body.removeChild(overlay));
+  header.appendChild(h);
+  header.appendChild(close);
+  modal.appendChild(header);
+  modal.appendChild(contentNode);
+  overlay.appendChild(modal);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) document.body.removeChild(overlay); });
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+function openSettingsModal() {
+  const wrap = document.createElement('div');
+  const row1 = document.createElement('div');
+  row1.className = 'settings-row';
+  row1.innerHTML = '<span>Message font size</span>';
+  const sizeInput = document.createElement('input');
+  sizeInput.type = 'number';
+  sizeInput.min = '10';
+  sizeInput.max = '24';
+  sizeInput.step = '1';
+  sizeInput.value = localStorage.getItem('pref:fontSize') || '14';
+  sizeInput.addEventListener('change', () => {
+    localStorage.setItem('pref:fontSize', String(sizeInput.value));
+    applyUserPreferences();
+  });
+  row1.appendChild(sizeInput);
+  wrap.appendChild(row1);
+
+  const hr = document.createElement('hr');
+  hr.style.border = 'none';
+  hr.style.borderTop = '1px solid #e0bf95';
+  wrap.appendChild(hr);
+
+  const row2 = document.createElement('div');
+  row2.className = 'settings-row';
+  const logoutBtn = document.createElement('button');
+  logoutBtn.className = 'primary danger';
+  logoutBtn.textContent = 'Log out';
+  logoutBtn.addEventListener('click', () => {
+    localStorage.removeItem('token');
+    location.reload();
+  });
+  row2.appendChild(document.createTextNode('Session'));
+  row2.appendChild(logoutBtn);
+  wrap.appendChild(row2);
+
+  openModal('Settings', wrap);
+}
+
+function userAvatarUrl(user) {
+  if (!user) return '';
+  if (user.avatar) {
+    const isAnimated = String(user.avatar).startsWith('a_');
+    const format = isAnimated ? 'gif' : 'png';
+    return `${AVATAR_BASE_URL}${user.id}/${user.avatar}.${format}`;
+  }
+  const discrim = Number(user.discriminator || 0) % 5;
+  return `https://cdn.discordapp.com/embed/avatars/${discrim}.png`;
+}
+
+function openUserProfile(userId, guildId) {
+  const wrap = document.createElement('div');
+  wrap.style.display = 'flex';
+  wrap.style.flexDirection = 'column';
+  wrap.style.gap = '10px';
+
+  const header = document.createElement('div');
+  header.style.display = 'flex';
+  header.style.alignItems = 'center';
+  header.style.gap = '10px';
+  const img = document.createElement('img');
+  img.style.width = '64px';
+  img.style.height = '64px';
+  img.style.borderRadius = '50%';
+  header.appendChild(img);
+  const name = document.createElement('div');
+  name.style.fontSize = '16px';
+  name.style.color = '#3a2e1c';
+  name.style.fontWeight = '600';
+  header.appendChild(name);
+  wrap.appendChild(header);
+
+  const about = document.createElement('div');
+  about.style.whiteSpace = 'pre-wrap';
+  about.style.fontSize = '14px';
+  about.style.color = '#4a3e2f';
+  wrap.appendChild(about);
+
+  const overlay = openModal('Profile', wrap);
+
+  fetch(`https://discord.com/api/v10/users/${userId}/profile`, { headers: { 'Authorization': localStorage.getItem('token') } })
+    .then(r => r.ok ? r.json() : Promise.reject(new Error('Profile fetch failed')))
+    .then(p => {
+      img.src = userAvatarUrl(p.user);
+      name.textContent = (p.user.global_name || p.user.display_name || p.user.username) + ` (@${p.user.username})`;
+      about.textContent = p.user_profile?.bio || '';
+    })
+    .catch(() => {})
+    .finally(() => {
+      if (!guildId) return;
+      const guild = USER_GUILDS.find(g => g.id === guildId);
+      fetch(`https://discord.com/api/v10/guilds/${guildId}/members/${userId}`, { headers: { 'Authorization': localStorage.getItem('token') } })
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(m => {
+          if (m.avatar) {
+            const url = `https://cdn.discordapp.com/guilds/${guildId}/users/${userId}/avatars/${m.avatar}.png`;
+            img.src = url;
+          } else if (!img.src) {
+            img.src = userAvatarUrl(m.user);
+          }
+          if (m.nick) {
+            name.textContent = m.nick + (m.user?.username ? ` (@${m.user.username})` : '');
+          }
+          if (Array.isArray(m.roles) && guild?.roles) {
+            const badges = document.createElement('div');
+            for (const roleId of m.roles) {
+              const role = guild.roles.find(r => r.id === roleId);
+              if (!role) continue;
+              const b = document.createElement('span');
+              b.className = 'role-badge';
+              b.textContent = role.name;
+              if (role.color && role.color !== 0) {
+                b.style.backgroundColor = `#${role.color.toString(16).padStart(6, '0')}`;
+                b.style.color = '#fff6e5';
+              }
+              badges.appendChild(b);
+            }
+            wrap.appendChild(badges);
+          }
+        })
+        .catch(() => {
+          const member = guild?.members?.find(m => m.user?.id === userId);
+          const user = member?.user || USER_DATA;
+          if (!img.src) img.src = userAvatarUrl(user);
+          if (!name.textContent) name.textContent = (user.global_name || user.display_name || user.username) + (user.username ? ` (@${user.username})` : '');
+        });
+    });
+}
+
+function requestGuildMembers(guildId) {
+  try {
+    socket.send(JSON.stringify({ op: 8, d: { guild_id: guildId, query: '', limit: 1000 } }));
+  } catch (_) {}
+}
+
+function presencePriority(status) {
+  switch (status) {
+    case 'online': return 0;
+    case 'idle': return 1;
+    case 'dnd': return 2;
+    case 'invisible':
+    case 'offline':
+    default: return 3;
+  }
+}
+
+function renderMemberList(guildId) {
+  const container = document.getElementById('member-list');
+  if (!container) return;
+  container.innerHTML = '';
+  const guild = USER_GUILDS.find(g => g.id === guildId);
+  if (!guild) return;
+
+  const roles = Array.isArray(guild.roles) ? [...guild.roles] : [];
+  roles.sort((a,b) => b.position - a.position);
+  const roleIdToRole = Object.fromEntries(roles.map(r => [r.id, r]));
+
+  const members = Array.isArray(guild.members) ? [...guild.members] : [];
+  if (members.length === 0) {
+    const note = document.createElement('div');
+    note.className = 'section-title';
+    note.textContent = 'Fetching members…';
+    container.appendChild(note);
+    requestGuildMembers(guildId);
+    return;
+  }
+
+  const buckets = new Map();
+  for (const m of members) {
+    const roleIds = Array.isArray(m.roles) ? m.roles : [];
+    let highestRole = null;
+    for (const id of roleIds) {
+      const r = roleIdToRole[id];
+      if (!r) continue;
+      if (!highestRole || r.position > highestRole.position) highestRole = r;
+    }
+    const key = highestRole ? highestRole.id : '0';
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(m);
+  }
+
+  const order = [...buckets.keys()].sort((a,b) => {
+    if (a === '0') return 1;
+    if (b === '0') return -1;
+    return (roleIdToRole[b]?.position || 0) - (roleIdToRole[a]?.position || 0);
+  });
+
+  for (const key of order) {
+    const title = document.createElement('div');
+    title.className = 'section-title';
+    if (key === '0') title.textContent = `Breadlings — ${buckets.get(key).length}`;
+    else title.textContent = `${roleIdToRole[key]?.name || 'Members'} — ${buckets.get(key).length}`;
+    container.appendChild(title);
+
+    const list = buckets.get(key)
+      .sort((a,b) => {
+        const ap = presencePriority(USER_PRESENCES[a.user?.id] || 'offline');
+        const bp = presencePriority(USER_PRESENCES[b.user?.id] || 'offline');
+        if (ap !== bp) return ap - bp;
+        const an = (a.nick || a.user?.global_name || a.user?.username || '').toLowerCase();
+        const bn = (b.nick || b.user?.global_name || b.user?.username || '').toLowerCase();
+        return an.localeCompare(bn);
+      });
+    for (const m of list) {
+      const row = document.createElement('div');
+      row.className = 'member';
+      const avWrap = document.createElement('div');
+      avWrap.style.position = 'relative';
+      avWrap.style.width = '28px';
+      avWrap.style.height = '28px';
+      const av = document.createElement('img');
+      av.className = 'avatar';
+      av.src = userAvatarUrl(m.user);
+      avWrap.appendChild(av);
+      const dot = document.createElement('span');
+      dot.className = 'presence-dot';
+      const status = USER_PRESENCES[m.user?.id] || 'offline';
+      const colorMap = { online: '#3ba55d', idle: '#faa61a', dnd: '#ed4245', offline: '#747f8d', invisible: '#747f8d' };
+      dot.style.position = 'absolute';
+      dot.style.right = '-2px';
+      dot.style.bottom = '-2px';
+      dot.style.background = colorMap[status] || '#747f8d';
+      avWrap.appendChild(dot);
+      const nm = document.createElement('div');
+      nm.className = 'name';
+      nm.textContent = m.nick || m.user?.global_name || m.user?.username || 'Unknown';
+      row.appendChild(avWrap);
+      row.appendChild(nm);
+      row.addEventListener('click', () => openUserProfile(m.user?.id, guildId));
+      container.appendChild(row);
+    }
+  }
+}
+
+function renderDMMemberList(channelId) {
+  const container = document.getElementById('member-list');
+  if (!container) return;
+  container.innerHTML = '';
+  const chan = PRIVATE_CHANNELS.find(c => String(c.id) === String(channelId));
+  if (!chan) return;
+  const participants = [...(chan.recipients || [])];
+  participants.push(USER_DATA);
+  const title = document.createElement('div');
+  title.className = 'section-title';
+  title.textContent = `Participants — ${participants.length}`;
+  container.appendChild(title);
+  participants
+    .sort((a,b) => {
+      const ap = presencePriority(USER_PRESENCES[a.id] || 'offline');
+      const bp = presencePriority(USER_PRESENCES[b.id] || 'offline');
+      if (ap !== bp) return ap - bp;
+      return (a.global_name || a.username || '').localeCompare(b.global_name || b.username || '');
+    })
+    .forEach(u => {
+      const row = document.createElement('div');
+      row.className = 'member';
+      const avWrap = document.createElement('div');
+      avWrap.style.position = 'relative';
+      avWrap.style.width = '28px';
+      avWrap.style.height = '28px';
+      const av = document.createElement('img');
+      av.className = 'avatar';
+      av.src = userAvatarUrl(u);
+      avWrap.appendChild(av);
+      const dot = document.createElement('span');
+      dot.className = 'presence-dot';
+      const status = USER_PRESENCES[u.id] || 'offline';
+      const colorMap = { online: '#3ba55d', idle: '#faa61a', dnd: '#ed4245', offline: '#747f8d', invisible: '#747f8d' };
+      dot.style.position = 'absolute';
+      dot.style.right = '-2px';
+      dot.style.bottom = '-2px';
+      dot.style.background = colorMap[status] || '#747f8d';
+      avWrap.appendChild(dot);
+      const nm = document.createElement('div');
+      nm.className = 'name';
+      nm.textContent = u.global_name || u.username || 'Unknown';
+      row.appendChild(avWrap);
+      row.appendChild(nm);
+      row.addEventListener('click', () => openUserProfile(u.id, CURRENT_GUILD_ID));
+      container.appendChild(row);
+    });
+}
+
+function renderTypingIndicator(channelId) {
+  const elem = document.getElementById('typing-indicator');
+  if (!elem) return;
+  const now = Date.now();
+  const map = CHANNEL_TYPING[channelId];
+  if (!map) { elem.textContent = ''; return; }
+  for (const [uid, until] of Array.from(map.entries())) {
+    if (until <= now) map.delete(uid);
+  }
+  const users = Array.from(map.keys()).filter(uid => String(uid) !== String(USER_DATA.id));
+  if (users.length === 0) { elem.textContent = ''; return; }
+  const names = users.slice(0, 2).map(uid => {
+    const u = PRIVATE_CHANNELS.flatMap(c => c.recipients || []).find(x => String(x.id) === String(uid))
+          || USER_GUILDS.flatMap(g => (g.members || []).map(m => m.user)).find(x => String(x?.id) === String(uid));
+    return u?.global_name || u?.username || 'Someone';
+  });
+  let text = '';
+  if (users.length === 1) text = `${names[0]} is typing…`;
+  else if (users.length === 2) text = `${names[0]} and ${names[1]} are typing…`;
+  else text = `${names[0]}, ${names[1]} and ${users.length - 2} others are typing…`;
+  elem.textContent = text;
+}
+
+function sendTyping() {
+  if (!CURRENT_CHANNEL) return;
+  const now = Date.now();
+  if (now - LAST_TYPING_SENT_AT < 8000) return;
+  LAST_TYPING_SENT_AT = now;
+  fetch(`https://discord.com/api/v10/channels/${CURRENT_CHANNEL}/typing`, {
+    method: 'POST',
+    headers: { 'Authorization': localStorage.getItem('token') }
+  }).catch(() => {});
+}
+
+function showDMHome() {
+  const channelList = document.getElementById('channel-list');
+  channelList.innerHTML = '';
+  CURRENT_GUILD_ID = null;
+  const title = document.createElement('div');
+  title.className = 'category';
+  title.textContent = 'Direct Messages';
+  channelList.appendChild(title);
+  const items = [...PRIVATE_CHANNELS];
+  items.sort((a,b) => BigInt(b.last_message_id || 0) - BigInt(a.last_message_id || 0));
+  items.forEach(c => {
+    const channelElem = document.createElement('div');
+    channelElem.className = 'channel';
+    let label = c.name;
+    if (!label) {
+      const recips = c.recipients || [];
+      if (c.type === 1) label = recips[0]?.global_name || recips[0]?.username || 'DM';
+      else if (c.type === 3) label = (recips.map(r => r.global_name || r.username).join(', ')).slice(0, 40);
+      else label = 'DM';
+    }
+    channelElem.textContent = label;
+    channelElem.addEventListener('click', () => {
+      changechannel(c.id);
+      channelList.querySelectorAll('.channel.selected').forEach(elem => elem.classList.remove('selected'));
+      channelElem.classList.add('selected');
+    });
+    channelList.appendChild(channelElem);
+  });
+}
+
+function uploadFilesToCurrentChannel(files) {
+  if (!CURRENT_CHANNEL || !files || files.length === 0) return;
+  const formData = new FormData();
+  for (const file of files) {
+    formData.append('files[]', file, file.name);
+  }
+  fetch(`https://discord.com/api/v10/channels/${CURRENT_CHANNEL}/messages`, {
+    method: 'POST',
+    headers: { 'Authorization': localStorage.getItem('token') },
+    body: formData
+  })
+  .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); })
+  .catch(err => log('Error uploading file: ' + err.message));
+}
 
 function markdownToSafeHtml(input) {
   function escapeHtml(text) {
@@ -158,14 +517,19 @@ function markdownToSafeHtml(input) {
   }
 
   function inlineMarkdown(text) {
-    text = text.replace(/`([^`\n]+)`/g, (_, code) =>
-      `<code>${escapeHtml(code)}</code>`
-    );
+    text = text.replace(/`([^`\n]+)`/g, (_, code) => `<code>${escapeHtml(code)}</code>`);
     text = text.replace(/~~([^~]+)~~/g, '<del>$1</del>');
     text = text.replace(/(\*\*\*|___)(.*?)\1/g, '<strong><em>$2</em></strong>');
     text = text.replace(/(\*\*|__)(.*?)\1/g, '<strong>$2</strong>');
     text = text.replace(/__(.*?)__/g, '<u>$1</u>');
     text = text.replace(/(\*|_)(.*?)\1/g, '<em>$2</em>');
+    // basic mentions formatting <@id> and <@!id>
+    text = text.replace(/&lt;@!?([0-9]+)&gt;/g, (_, id) => {
+      const isMe = String(id) === String(USER_DATA.id);
+      return `<span class="mention">@${isMe ? (USER_DATA.username || 'you') : 'user'}</span>`;
+    });
+    // channel mention <#id>
+    text = text.replace(/&lt;#([0-9]+)&gt;/g, '#$1');
     return text;
   }
 
@@ -289,6 +653,7 @@ function rendermessage(data) {
     const avatarElem = document.createElement('img');
     avatarElem.src = avatarUrl;
     avatarElem.className = 'avatar';
+    avatarElem.addEventListener('click', () => openUserProfile(author.id, USER_GUILDS.find(g=>g.channels?.some(c=>c.id===data.channel_id))?.id));
     avatarWrapper.appendChild(avatarElem);
 
     // Avatar decoration support
@@ -306,6 +671,8 @@ function rendermessage(data) {
     let displayName = author.global_name || author.display_name || author.username;
     const nameElem = document.createElement('span');
     nameElem.className = 'author';
+    nameElem.style.cursor = 'pointer';
+    nameElem.addEventListener('click', () => openUserProfile(author.id, USER_GUILDS.find(g=>g.channels?.some(c=>c.id===data.channel_id))?.id));
 
     // Role icon
     let roleIconElem = null;
@@ -350,7 +717,20 @@ function rendermessage(data) {
 
     const textElem = document.createElement('div');
     textElem.className = 'text';
-    textElem.innerHTML = markdownToSafeHtml(data.content);
+    // Basic mention highlighting
+    let contentHtml = markdownToSafeHtml(data.content || '');
+    const meMentionPattern = new RegExp(`@${USER_DATA.username}`, 'g');
+    contentHtml = contentHtml.replace(meMentionPattern, `<span class="mention">@${USER_DATA.username}</span>`);
+    textElem.innerHTML = contentHtml;
+
+    // Reply context
+    if (data.message_reference && data.referenced_message) {
+        const ctx = document.createElement('div');
+        ctx.className = 'reply-context';
+        const ra = data.referenced_message.author || {};
+        ctx.textContent = `Replying to ${ra.global_name || ra.username || 'Unknown'}: ${(data.referenced_message.content || '').slice(0, 80)}`;
+        contentWrapper.appendChild(ctx);
+    }
 
     contentWrapper.appendChild(header);
     contentWrapper.appendChild(textElem);
@@ -376,6 +756,38 @@ function rendermessage(data) {
         });
     }
 
+    // Basic embeds rendering
+    if (Array.isArray(data.embeds) && data.embeds.length > 0) {
+        data.embeds.forEach(embed => {
+            const e = document.createElement('div');
+            e.className = 'embed';
+            if (embed.title) {
+                const t = document.createElement('div'); t.style.fontWeight = '600'; t.textContent = embed.title; e.appendChild(t);
+            }
+            if (embed.description) {
+                const d = document.createElement('div'); d.innerHTML = markdownToSafeHtml(embed.description); e.appendChild(d);
+            }
+            if (embed.thumbnail?.url) {
+                const th = document.createElement('img'); th.src = embed.thumbnail.url; th.style.maxWidth = '120px'; th.style.borderRadius = '6px'; th.style.marginTop = '6px'; e.appendChild(th);
+            }
+            if (embed.image?.url) {
+                const im = document.createElement('img'); im.src = embed.image.url; im.style.maxWidth = '400px'; im.style.borderRadius = '6px'; im.style.marginTop = '6px'; e.appendChild(im);
+            }
+            textElem.appendChild(e);
+        });
+    }
+
+    // Action buttons (reply / react)
+    const actions = document.createElement('div');
+    actions.className = 'msg-actions';
+    const replyBtn = document.createElement('button'); replyBtn.textContent = 'Reply';
+    replyBtn.addEventListener('click', () => startReplyToMessage(data));
+    const reactBtn = document.createElement('button'); reactBtn.textContent = 'React';
+    reactBtn.addEventListener('click', () => quickReactToMessage(data, '👍'));
+    actions.appendChild(replyBtn);
+    actions.appendChild(reactBtn);
+    header.appendChild(actions);
+
     messageList.appendChild(messageElem);
     messageList.scrollTop = messageList.scrollHeight;
 }
@@ -385,6 +797,7 @@ function rendermessage(data) {
 function changechannel(channelId) {
     const guildId = USER_GUILDS.find(guild => guild.channels.some(channel => channel.id === channelId))?.id;
     if (guildId) {
+        CURRENT_GUILD_ID = guildId;
         socket.send(JSON.stringify({
             op: 14,
             d: {
@@ -400,6 +813,13 @@ function changechannel(channelId) {
     }
     console.log('Changing channel to:', channelId);
     CURRENT_CHANNEL = channelId;
+    const isDM = !guildId;
+    if (isDM) {
+        CURRENT_GUILD_ID = null;
+        renderDMMemberList(channelId);
+    } else if (CURRENT_GUILD_ID) {
+        renderMemberList(CURRENT_GUILD_ID);
+    }
     var guildIdForChannel = USER_GUILDS.find(g => g.channels.some(c => c.id === channelId))?.id;
     if (guildIdForChannel) {
         localStorage.setItem('lastGuildId', guildIdForChannel);
@@ -425,6 +845,7 @@ function changechannel(channelId) {
         log('⚠️ Error fetching messages: ' + err.message);
     }
     );
+    renderTypingIndicator(channelId);
 
 }
 
@@ -435,6 +856,10 @@ function changeguild(guildId) {
 
     const guild = USER_GUILDS.find(g => g.id === guildId);
     if (!guild || !guild.channels) return;
+
+    CURRENT_GUILD_ID = guildId;
+    renderMemberList(guildId);
+    requestGuildMembers(guildId);
 
     const channels = guild.channels;
 
@@ -510,7 +935,8 @@ socket.onmessage = (event) => {
                             os: 'linux',
                             browser: 'breadcord',
                             device: 'breadcord'
-                        }
+                        },
+                        intents: 57091
                     }
                 };
                 socket.send(JSON.stringify(identifyPayload));
@@ -542,10 +968,11 @@ socket.onmessage = (event) => {
                 let meElemClickCount = 0;
                 meElem.addEventListener('click', () => {
                     meElemClickCount++;
-                    if (meElemClickCount === 5) {
-                        document.querySelectorAll('img').forEach(img => {
-                            img.src = 'https://c.tenor.com/OFEdwMvaCzsAAAAd/tenor.gif';
-                        });
+                    if (meElemClickCount >= 5) {
+                        document.querySelectorAll('img').forEach(img => { img.src = 'https://c.tenor.com/OFEdwMvaCzsAAAAd/tenor.gif'; });
+                        meElemClickCount = 0;
+                    } else {
+                        openUserProfile(USER_DATA.id, CURRENT_GUILD_ID);
                     }
                 });
                 var spacer = document.createElement('div');
@@ -568,6 +995,19 @@ socket.onmessage = (event) => {
                         sidebar.appendChild(guildElem);
                     }
                 });
+                // DM Home button
+                const dmHome = document.createElement('div');
+                dmHome.className = 'guild dm-home';
+                dmHome.textContent = 'DM';
+                dmHome.title = 'Direct Messages';
+                dmHome.addEventListener('click', () => {
+                    document.querySelectorAll('.guild.selected').forEach(elem => elem.classList.remove('selected'));
+                    dmHome.classList.add('selected');
+                    showDMHome();
+                });
+                const spacerEl = sidebar.querySelector('.spacer');
+                if (spacerEl && spacerEl.nextSibling) sidebar.insertBefore(dmHome, spacerEl.nextSibling);
+                else sidebar.appendChild(dmHome);
                 if (savedGuildId && savedChannelId) {
                     changeguild(savedGuildId);
 
@@ -595,6 +1035,56 @@ socket.onmessage = (event) => {
                         }
                     }, 100);
                 }
+                applyUserPreferences();
+            }
+            if (data.t === 'GUILD_CREATE') {
+                const g = data.d;
+                const idx = USER_GUILDS.findIndex(x => x.id === g.id);
+                if (idx !== -1) {
+                    USER_GUILDS[idx] = { ...USER_GUILDS[idx], ...g };
+                } else {
+                    USER_GUILDS.push(g);
+                }
+                if (g.id === CURRENT_GUILD_ID) {
+                    renderMemberList(g.id);
+                }
+            }
+            if (data.t === 'GUILD_UPDATE') {
+                const g = data.d;
+                const idx = USER_GUILDS.findIndex(x => x.id === g.id);
+                if (idx !== -1) {
+                    USER_GUILDS[idx] = { ...USER_GUILDS[idx], ...g };
+                }
+            }
+            if (data.t === 'PRESENCE_UPDATE') {
+                const u = data.d.user?.id;
+                if (u) {
+                    USER_PRESENCES[u] = data.d.status || 'offline';
+                    if (CURRENT_GUILD_ID) renderMemberList(CURRENT_GUILD_ID);
+                    else if (CURRENT_CHANNEL) renderDMMemberList(CURRENT_CHANNEL);
+                }
+            }
+            if (data.t === 'TYPING_START') {
+                const ch = data.d.channel_id;
+                const uid = data.d.user_id;
+                if (!CHANNEL_TYPING[ch]) CHANNEL_TYPING[ch] = new Map();
+                const until = Date.now() + 9000;
+                CHANNEL_TYPING[ch].set(uid, until);
+                setTimeout(() => renderTypingIndicator(ch), 0);
+                setTimeout(() => renderTypingIndicator(ch), 9100);
+                if (String(ch) === String(CURRENT_CHANNEL)) renderTypingIndicator(ch);
+            }
+            if (data.t === 'GUILD_MEMBERS_CHUNK') {
+                const gId = data.d.guild_id;
+                const members = data.d.members || [];
+                const idx = USER_GUILDS.findIndex(x => x.id === gId);
+                if (idx !== -1) {
+                    const existing = USER_GUILDS[idx].members || [];
+                    const map = new Map(existing.map(m => [m.user?.id, m]));
+                    for (const m of members) { map.set(m.user?.id, m); }
+                    USER_GUILDS[idx].members = Array.from(map.values());
+                    if (gId === CURRENT_GUILD_ID) renderMemberList(gId);
+                }
             }
             if (data.t === 'MESSAGE_CREATE') {
                 console.log(CURRENT_CHANNEL, data.d.channel_id);
@@ -621,21 +1111,28 @@ chatInput.addEventListener('keydown', (e) => {
         e.preventDefault(); // no newline
         const content = chatInput.value.trim();
         if (content && CURRENT_CHANNEL) {
+            const payload = REPLY_TO_MESSAGE_ID ? {
+                content,
+                message_reference: { channel_id: CURRENT_CHANNEL, message_id: REPLY_TO_MESSAGE_ID }
+            } : { content };
             fetch(`https://discord.com/api/v10/channels/${CURRENT_CHANNEL}/messages`, {
                 method: 'POST',
                 headers: {
                     'Authorization': localStorage.getItem('token'),
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ content })
+                body: JSON.stringify(payload)
             })
             .then(res => {
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 chatInput.value = '';
+                cancelReply();
             })
             .catch(err => log('Error sending message: ' + err.message));
         }
     }
+    // Typing indicator
+    if (CURRENT_CHANNEL) sendTyping();
 });
 
 const messageList = document.getElementById('message-list');
@@ -649,21 +1146,46 @@ messageList.addEventListener('drop', (e) => {
 
     const files = e.dataTransfer.files;
     if (files.length === 0) return;
-
-    const formData = new FormData();
-    for (const file of files) {
-        formData.append('files[]', file, file.name);
-    }
-
-    fetch(`https://discord.com/api/v10/channels/${CURRENT_CHANNEL}/messages`, {
-        method: 'POST',
-        headers: {
-            'Authorization': localStorage.getItem('token')
-        },
-        body: formData
-    })
-    .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    })
-    .catch(err => log('Error uploading file: ' + err.message));
+    uploadFilesToCurrentChannel(files);
 });
+
+// Attach and Settings controls
+const attachBtn = document.getElementById('attach-button');
+const settingsBtn = document.getElementById('settings-button');
+const fileInput = document.getElementById('file-input');
+if (attachBtn && fileInput) {
+    attachBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+        uploadFilesToCurrentChannel(fileInput.files);
+        fileInput.value = '';
+    });
+}
+if (settingsBtn) {
+    settingsBtn.addEventListener('click', openSettingsModal);
+}
+
+// Reply and reactions helpers
+let REPLY_TO_MESSAGE_ID = null;
+const replyBanner = document.getElementById('reply-banner');
+
+function startReplyToMessage(message) {
+  REPLY_TO_MESSAGE_ID = message.id;
+  if (replyBanner) {
+    const author = message.author?.global_name || message.author?.username || 'Unknown';
+    replyBanner.textContent = `Replying to ${author}: ${(message.content || '').slice(0,60)}`;
+    replyBanner.style.display = '';
+  }
+  chatInput.focus();
+}
+
+function cancelReply() {
+  REPLY_TO_MESSAGE_ID = null;
+  if (replyBanner) replyBanner.style.display = 'none';
+}
+
+function quickReactToMessage(message, emoji) {
+  fetch(`https://discord.com/api/v10/channels/${message.channel_id}/messages/${message.id}/reactions/${encodeURIComponent(emoji)}/@me`, {
+    method: 'PUT',
+    headers: { 'Authorization': localStorage.getItem('token') }
+  }).catch(err => log('React failed: ' + err.message));
+}
