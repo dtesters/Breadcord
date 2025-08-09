@@ -7,10 +7,17 @@ window.electronAPI.sendMessage('toMain', { code: 'platform_request' });
 // lazy auth
 if (!localStorage.getItem('token')) {
 
-    // check if windows
-    if (PLATFORM && PLATFORM.startsWith('win')) {
-        window.electronAPI.sendMessage('toMain', { code: 'search_for_discord_installs' });
-    }
+    // wait until PLATFORM is not null
+    const checkPlatform = () => {
+        if (PLATFORM !== null) {
+            if (PLATFORM.startsWith('win')) {
+                window.electronAPI.sendMessage('toMain', { code: 'search_for_discord_installs' });
+            }
+        } else {
+            setTimeout(checkPlatform, 50);
+        }
+    };
+    checkPlatform();
 
     const modal = document.createElement('div');
     modal.style.position = 'fixed';

