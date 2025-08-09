@@ -503,6 +503,16 @@ blockquote {
     font-size: 12px;
 }
 
+#sidebar .guild.iconless-guild {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #d1ae75;
+    color: #fff6e5;
+    font-weight: 700;
+    font-size: 12px;
+}
+
 /* Role badge in profile */
 .role-badge {
     display: inline-block;

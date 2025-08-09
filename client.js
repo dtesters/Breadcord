@@ -994,6 +994,22 @@ socket.onmessage = (event) => {
                         });
                         sidebar.appendChild(guildElem);
                     }
+                    else {
+                        // First letter of each word in the server name, up to 5 letters
+                        const serverName = guild.name || 'Unknown';
+                        const initials = serverName.split(' ').map(word => word.charAt(0)).join('').slice(0, 3).toUpperCase();
+                        const guildElem = document.createElement('div');
+                        guildElem.className = 'guild iconless-guild';
+                        guildElem.textContent = initials;
+                        guildElem.addEventListener('click', () => {
+                            document.querySelectorAll('.guild.selected').forEach(elem => {
+                                elem.classList.remove('selected');
+                            });
+                            guildElem.classList.add('selected');
+                            changeguild(guild.id);
+                        });
+                        sidebar.appendChild(guildElem);
+                    }
                 });
                 // DM Home button
                 const dmHome = document.createElement('div');
