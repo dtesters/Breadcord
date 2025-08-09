@@ -1,6 +1,7 @@
 {
   "name": "breadcord",
-  "version": "1.0.0",
+  "productName": "BreadCord",
+  "version": "1.0.1",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

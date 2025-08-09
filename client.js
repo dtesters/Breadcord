@@ -1,8 +1,17 @@
 // war crimes have been committed in the making of this code
 // i speedran ts in around 4 hours dont expect it to be good
 
+var PLATFORM = null;
+window.electronAPI.sendMessage('toMain', { code: 'platform_request' });
+
 // lazy auth
 if (!localStorage.getItem('token')) {
+
+    // check if windows
+    if (PLATFORM && PLATFORM.startsWith('win')) {
+        window.electronAPI.sendMessage('toMain', { code: 'search_for_discord_installs' });
+    }
+
     const modal = document.createElement('div');
     modal.style.position = 'fixed';
     modal.style.top = '0';
@@ -15,7 +24,7 @@ if (!localStorage.getItem('token')) {
     modal.style.justifyContent = 'center';
     modal.style.zIndex = '9999';
 
-    const box = document.createElement('div');
+    var box = document.createElement('div');
     box.style.background = '#c2a679';
     box.style.padding = '24px';
     box.style.borderRadius = '12px';
@@ -70,6 +79,35 @@ if (!localStorage.getItem('token')) {
         }
     });
 }
+
+window.electronAPI.onMessage('fromMain', (data) => {
+    if (data.code === 'platform_response') {
+        PLATFORM = data.platform;
+    }
+    if (data.code === 'autoimport_token_response') {
+        localStorage.setItem('token', data.token);
+        location.reload();
+    }
+    if (data.code === 'discord_installs_response') {
+        if (data.found) {
+            const button = document.createElement('button');
+            button.textContent = 'Auto Import';
+            button.style.padding = '8px 16px';
+            button.style.background = '#dba570ff';
+            button.style.color = '#fff8e1';
+            button.style.border = 'none';
+            button.style.borderRadius = '6px';
+            button.style.cursor = 'pointer';
+            button.style.fontWeight = 'bold';
+            button.style.boxShadow = '0 1px 4px rgba(90, 60, 30, 0.2)';
+            box.appendChild(button);
+
+            button.addEventListener('click', () => {
+                window.electronAPI.sendMessage('toMain', { code: 'autoimport_token' });
+            });
+        }
+    }
+});
 
 const log = (msg) => { document.getElementById('log').textContent += msg + '\n'; };
 
