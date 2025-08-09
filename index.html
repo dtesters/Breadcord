@@ -10,9 +10,17 @@
     <div id="sidebar"></div>
     <div id="channel-list"></div>
     <div id="message-list"></div>
+    <div id="member-list"></div>
     <div id="chat-input-wrapper">
-  <textarea id="chat-input" placeholder="Type a message..."></textarea>
-</div>
+      <div id="reply-banner" style="display:none"></div>
+      <div id="chat-controls">
+        <button id="attach-button" title="Upload files">📎</button>
+        <textarea id="chat-input" placeholder="Type a message..."></textarea>
+        <button id="settings-button" title="Settings">⚙️</button>
+      </div>
+      <div id="typing-indicator" aria-live="polite"></div>
+      <input type="file" id="file-input" multiple style="display:none" />
+    </div>
   <pre id="log" style="display:none"></pre>
 
   <script src="client.js"></script>
