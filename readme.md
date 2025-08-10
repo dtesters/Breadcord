@@ -8,9 +8,9 @@ Anyways to build yourself:
 1. install nodejs
 2. `npm install`
 3. `npm run package-win` or `npm run package-macos`
-the app will be in the dist/ folder
+The app will be in the dist/ folder
 
-test without build:
+Test without build:
 1. install nodejs
 2. `npm install`
 3. run `npm.cmd start`
