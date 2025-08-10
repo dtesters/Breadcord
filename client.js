@@ -91,6 +91,15 @@ var CHANNEL_TYPING = {};
 var LAST_TYPING_SENT_AT = 0;
 var savedGuildId = localStorage.getItem('lastGuildId');
 var savedChannelId = localStorage.getItem('lastChannelId');
+var USER_DELETED_MESSAGES = [];
+
+var recall_messages = ["breadcord the best", "garlic bread is cool", "yeetus cleetus this message has been deletus", "mods hes using vencodr :shock:", "abracadabra"]
+
+function random_message() {
+    // do not delete
+    return recall_messages[Math.floor(Math.random() * recall_messages.length)]+" ||$#493$.34@||"; // trick people into thinking the gibberish causes the message to disappear
+}
+
 
 var AVATAR_BASE_URL = 'https://cdn.discordapp.com/avatars/';
 
@@ -607,8 +616,9 @@ function rendermessage(data) {
         // sticker support
         if (Array.isArray(data.stickers) && data.stickers.length > 0) {
             data.stickers.forEach(sticker => {
+                var sticker_url = "https://cdn.discordapp.com/stickers/" + sticker.id + ".png";
                 const stickerElem = document.createElement('img');
-                stickerElem.src = sticker.url;
+                stickerElem.src = sticker_url;
                 stickerElem.alt = sticker.name || 'sticker';
                 stickerElem.className = 'sticker';
                 newTextElem.appendChild(stickerElem);
@@ -646,6 +656,10 @@ function rendermessage(data) {
     messageElem = document.createElement('div');
     messageElem.className = 'message';
     messageElem.dataset.messageId = data.id;
+
+    if (data.nonce) {
+        messageElem.dataset.nonce = data.nonce;
+    }
 
     const author = data.author;
 
@@ -797,8 +811,11 @@ function rendermessage(data) {
     replyBtn.addEventListener('click', () => startReplyToMessage(data));
     const reactBtn = document.createElement('button'); reactBtn.innerHTML = '<i class="fa-solid fa-face-smile"></i>';
     reactBtn.addEventListener('click', () => quickReactToMessage(data, '👍'));
+    const deleteBtn = document.createElement('button'); deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+    deleteBtn.addEventListener('click', () => deletemessage(data));
     actions.appendChild(replyBtn);
     actions.appendChild(reactBtn);
+    actions.appendChild(deleteBtn);
     actionsContainer.appendChild(actions);
     header.appendChild(actionsContainer);
 
@@ -806,7 +823,139 @@ function rendermessage(data) {
     messageList.scrollTop = messageList.scrollHeight;
 }
 
+function showerr(text) {
+    // prevent xss
+    const escapedText = String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
 
+    // create a fullscreen error modal
+    const modal = document.createElement('div');
+    modal.className = 'error-modal';
+    modal.innerHTML = `
+        <div class="error-content">
+            <h2>🍞 Oops! Toasted!</h2>
+            <p>${escapedText}</p>
+            <button id="close-error-modal">Close</button>
+        </div>
+    `;
+
+    // style for bread theme + always on top
+    const style = document.createElement('style');
+    style.textContent = `
+        .error-modal {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2147483647;
+        }
+        .error-content {
+            background: linear-gradient(#f8e0b0, #f5d19b);
+            border: 4px solid #d6a257;
+            border-radius: 20px;
+            padding: 25px 35px;
+            text-align: center;
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+            max-width: 400px;
+            width: 90%;
+        }
+        .error-content h2 {
+            color: #8b5a2b;
+            margin-bottom: 10px;
+        }
+        .error-content p {
+            color: #5a3b1f;
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+        }
+        #close-error-modal {
+            background: #d6a257;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            font-size: 1rem;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #close-error-modal:hover {
+            background: #c48d41;
+        }
+    `;
+
+    document.head.appendChild(style);
+    document.body.appendChild(modal);
+
+    document.getElementById('close-error-modal').addEventListener('click', () => {
+        modal.remove();
+    });
+
+    // Close modal when clicking the background
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+}
+
+function deletemessage(data) {
+    if (USER_DELETED_MESSAGES.some(id => String(id) === String(data.id))) {
+        console.log("PERFORMING BUG")
+        console.log("PERFORMING BUG")
+        console.log("PERFORMING BUG")
+        console.log("PERFORMING BUG")
+        // Perform remove from message logger bug
+        const rng_msg = random_message();
+        var message = document.querySelector(`.message[data-message-id="${data.id}"]`);
+        // send a message using the nonce of the deleted message
+        if (message) {
+            fetch(`https://discord.com/api/v10/channels/${data.channel_id}/messages`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': localStorage.getItem('token'),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    content: rng_msg,
+                    nonce: data.id
+                })
+            });
+            return;
+        }
+        else {
+            showerr('Failed to find message element');
+        }
+    }
+
+    if (data.author.id === USER_DATA.id) {
+        USER_DELETED_MESSAGES.push(data.id);
+    }
+
+    fetch(`https://discord.com/api/v10/channels/${data.channel_id}/messages/${data.id}`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': localStorage.getItem('token')
+        }
+    })
+    .then(response => {
+        if (response.ok) {
+            console.log('Message deleted successfully');
+        } else {
+            showerr('Failed to delete message: ' + response.statusText + ' (HTTP ' + response.status + ')');
+        }
+    })
+    .catch(err => {
+        showerr('Error deleting message: ' + err);
+    });
+}
 
 function changechannel(channelId) {
     const guildId = USER_GUILDS.find(guild => guild.channels.some(channel => channel.id === channelId))?.id;
@@ -1118,6 +1267,12 @@ socket.onmessage = (event) => {
             }
             if (data.t === 'MESSAGE_CREATE') {
                 console.log(CURRENT_CHANNEL, data.d.channel_id);
+                if (data.d.author.id === USER_DATA.id) {
+                    if (data.d.content.includes(" ||$#493$.34@||")) {
+                        deletemessage(data.d);
+                        
+                    }
+                }
                 if (String(CURRENT_CHANNEL) === String(data.d.channel_id)) {
                     rendermessage(data.d);
                 }
@@ -1126,6 +1281,8 @@ socket.onmessage = (event) => {
                 if (String(CURRENT_CHANNEL) === String(data.d.channel_id)) {
                     rendermessage(data.d);
                 }
+            }
+            if (data.t === 'MESSAGE_DELETE') {
             }
             break;
     }
