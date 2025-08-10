@@ -456,22 +456,38 @@ button.primary:hover { background: #c9a76f; }
     opacity: 0.9;
 }
 
+.msg-actions-container {
+    /* display: inline-block; */
+    float: right;
+    margin-top: -5px;
+}
+
 .msg-actions {
     opacity: 0;
     transition: opacity .1s ease;
-    display: inline-flex;
-    gap: 6px;
-    margin-left: 8px;
+    display: inline-block;
+    box-sizing: border-box;
+    text-align: center;
+    vertical-align: middle;
 }
 #message-list .message:hover .msg-actions { opacity: 1; }
+
+.msg-actions-container button:first-of-type {
+    border-radius: 6px 0 0 6px;
+}
+.msg-actions-container button:last-of-type {
+    border-radius: 0 6px 6px 0;
+}
+
 .msg-actions button {
     background: #e0bf95;
     color: #3a2e1c;
     border: none;
-    border-radius: 6px;
-    padding: 2px 6px;
+    /* border-radius: 6px; */
     cursor: pointer;
     font-size: 12px;
+    width: 25px;
+    height: 25px;
 }
 .msg-actions button:hover { background: #d9b88c; }
 

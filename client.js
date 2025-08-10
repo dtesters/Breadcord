@@ -604,6 +604,17 @@ function rendermessage(data) {
         newTextElem.className = 'text';
         newTextElem.innerHTML = markdownToSafeHtml(data.content);
 
+        // sticker support
+        if (Array.isArray(data.stickers) && data.stickers.length > 0) {
+            data.stickers.forEach(sticker => {
+                const stickerElem = document.createElement('img');
+                stickerElem.src = sticker.url;
+                stickerElem.alt = sticker.name || 'sticker';
+                stickerElem.className = 'sticker';
+                newTextElem.appendChild(stickerElem);
+            });
+        }
+
         if (Array.isArray(data.attachments) && data.attachments.length > 0) {
             data.attachments.forEach(attachment => {
                 if (attachment.proxy_url) {
@@ -778,15 +789,18 @@ function rendermessage(data) {
     }
 
     // Action buttons (reply / react)
+    const actionsContainer = document.createElement('div');
+    actionsContainer.className = 'msg-actions-container';
     const actions = document.createElement('div');
     actions.className = 'msg-actions';
-    const replyBtn = document.createElement('button'); replyBtn.textContent = 'Reply';
+    const replyBtn = document.createElement('button'); replyBtn.innerHTML = '<i class="fa-solid fa-reply"></i>';
     replyBtn.addEventListener('click', () => startReplyToMessage(data));
-    const reactBtn = document.createElement('button'); reactBtn.textContent = 'React';
+    const reactBtn = document.createElement('button'); reactBtn.innerHTML = '<i class="fa-solid fa-face-smile"></i>';
     reactBtn.addEventListener('click', () => quickReactToMessage(data, '👍'));
     actions.appendChild(replyBtn);
     actions.appendChild(reactBtn);
-    header.appendChild(actions);
+    actionsContainer.appendChild(actions);
+    header.appendChild(actionsContainer);
 
     messageList.appendChild(messageElem);
     messageList.scrollTop = messageList.scrollHeight;
