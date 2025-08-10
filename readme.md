@@ -11,6 +11,6 @@ Anyways to build yourself:
 the app will be in the dist/ folder
 
 test without build:
-1. 1. install nodejs
+1. install nodejs
 2. `npm install`
 3. run `npm.cmd start`
