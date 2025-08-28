@@ -52,6 +52,23 @@ breadcord
 
 breadcord.mount("#app");
 
+// Sidebar bread icon -> Friends route
+const breadIcon = BreadUI.create_element("guild-breadicon", {}, { html: `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='24' height='24' aria-hidden='true'><path fill='currentColor' d='M4 7c0-2.761 3.134-5 7-5s7 2.239 7 5c1.657 0 3 1.343 3 3v7a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V10c0-1.657 1.343-3 3-3z'/></svg>` });
+breadIcon.onclick(() => { window.BreadRouter?.navigate('/friends'); });
+breadcord_server_list.add(breadIcon);
+
+// Simple route handler: render Friends when /friends
+function handleRoute(path) {
+  if (path === '/friends') {
+    const nav_current_location = document.querySelector('[data-type="nav-current-location"]');
+    if (nav_current_location) nav_current_location.innerText = 'Friends';
+    if (window.FriendsTab?.mount) window.FriendsTab.mount();
+  }
+}
+window.BreadRouter?.onChange(handleRoute);
+// Initial mount if deep-linked
+handleRoute(window.BreadRouter?.path ? window.BreadRouter.path() : '/');
+
 // Debug Light/Dark Theme Toggle
 const root = document.documentElement;
 root.classList.add('dark');

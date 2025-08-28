@@ -220,5 +220,13 @@ class BreadCache {
   static get guilds() {
     return guild_cache.values();
   }
+
+  // Convenience getters for consumers (Friends/DM pages)
+  static getRelationships() {
+    return relationships.values();
+  }
+  static getPrivateChannels() {
+    return private_channels.values();
+  }
 }
 window.BreadCache = BreadCache;

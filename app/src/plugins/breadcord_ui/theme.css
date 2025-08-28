@@ -628,3 +628,19 @@ html.dark, body.dark {
   font-weight: 300;
   color: var(--color-text);
 }
+
+/* Friends Tab minimal styles */
+.friends-header { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--color-muted); }
+.friends-tab { background:transparent; color:var(--color-text); border:none; padding:6px 10px; border-radius:6px; cursor:pointer; }
+.friends-tab[aria-selected="true"] { background: var(--color-muted-secondary); }
+.friends-search { margin-left:auto; background:var(--color-surface); border:1px solid var(--color-muted); color:var(--color-text); padding:6px 8px; border-radius:6px; }
+.friends-body { display:flex; gap:12px; padding:12px; }
+.friends-section { flex:1; display:flex; flex-direction:column; gap:8px; }
+.friends-section-title { font-size:12px; text-transform:uppercase; color:var(--color-nav-text); letter-spacing:0.04em; }
+.friends-list { display:flex; flex-direction:column; gap:6px; }
+.friend-row, .dm-row { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; background:transparent; }
+.friend-row:hover, .dm-row:hover { background: var(--color-muted-secondary); }
+.friend-row .avatar, .dm-row .avatar { width:32px; height:32px; border-radius:50%; background: var(--color-surface); }
+.activity-card { background: var(--color-surface); border:1px solid var(--color-muted); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:6px; }
+.activity-card .row { display:flex; align-items:center; gap:8px; color:var(--color-text); }
+.activity-card .time { margin-left:auto; color:var(--color-nav-text); font-size:11px; }

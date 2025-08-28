@@ -105,6 +105,18 @@ BreadAPI.ready.then(async () => {
   BreadAPI.info('Breadcord ready, found ' + BreadAPI.plugins.length + ' plugin(s): ' + BreadAPI.plugins.join(', '));
   const loadOrder = (await determinePluginLoadOrder(BreadAPI.plugins));
   BreadAPI.info('Resolved load order: ' + loadOrder.join(', '));
+  // Preload core lib/pages used by UI plugins
+  const preloads = [
+    'lib/sortDMs.js',
+    'scripts/router.js',
+    'pages/FriendsTab.js',
+  ];
+  for (const p of preloads) {
+    const s = document.createElement('script');
+    s.src = p;
+    s.defer = true;
+    document.head.appendChild(s);
+  }
   for (const plugin of loadOrder) {
     await load_plugin(plugin);
   }
