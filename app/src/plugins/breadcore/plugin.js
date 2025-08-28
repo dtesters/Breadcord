@@ -111,6 +111,32 @@ class BreadUI {
   static #mergeStyles(base = {}, override = {}) {
     return { ...base, ...override };
   }
+
+  /**
+   * Destroy a container by id, removing it from the registry and DOM.
+   * Recursively unregisters all descendant containers.
+   * @param {string} id
+   * @returns {boolean} true if removed
+   */
+  static destroy_container(id) {
+    const container = BreadUI.#containers.get(id);
+    if (!container) return false;
+    // Recursively unregister descendants first
+    const stack = [container];
+    while (stack.length) {
+      const node = stack.pop();
+      if (node && Array.isArray(node.children)) {
+        for (const child of node.children) {
+          if (child instanceof UIContainer) stack.push(child);
+        }
+      }
+      BreadUI.#containers.delete(node.id);
+      if (node._domRef && node._domRef.parentNode) {
+        try { node._domRef.parentNode.removeChild(node._domRef); } catch {}
+      }
+    }
+    return true;
+  }
 }
 
 /** Base: common fields for elements/containers */
@@ -268,6 +294,21 @@ class UIContainer extends UINode {
       el.appendChild(child.toDOM());
     }
     return el;
+  }
+
+  /** Remove all children and clear the mounted DOM contents. */
+  clear() {
+    const oldChildren = Array.isArray(this.children) ? this.children.slice() : [];
+    if (this._domRef) {
+      while (this._domRef.firstChild) this._domRef.removeChild(this._domRef.firstChild);
+    }
+    this.children = [];
+    for (const child of oldChildren) {
+      if (child instanceof UIContainer) {
+        try { BreadUI.destroy_container(child.id); } catch {}
+      }
+    }
+    return this;
   }
 
   /**

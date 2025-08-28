@@ -133,6 +133,7 @@ const user_cache = new ObjectCache({ arrays: "replace" });
 const guild_cache = new ObjectCache({ arrays: "replace" });
 const private_channels = new ObjectCache({ arrays: "replace" }); // these are DMs
 const relationships = new ObjectCache({ arrays: "replace" }); // these are friends, blocked, etc.
+const presences = new ObjectCache({ arrays: "replace" }); // userId -> presence { status, activities, client_status }
 let user_settings = null;
 let user = null;
 
@@ -160,12 +161,91 @@ BreadAPI.gateway.on_message((data) => {
 
     BreadCache.markReady();
   }
+  // Presence updates from gateway
+  if (data.t === "PRESENCE_UPDATE") {
+    try {
+      const p = data.d || {};
+      const uid = String(p.user?.id || p.user_id || p.id || "");
+      if (uid) {
+        // Cache minimal user fields if provided
+        if (p.user) {
+          const { id, username, global_name, avatar, avatar_decoration_data } = p.user;
+          if (id) user_cache.update(id, { id, username, global_name, avatar, avatar_decoration_data });
+        }
+        // Normalize presence payload
+        const presence = {
+          user_id: uid,
+          status: p.status || p.client_status?.desktop || p.client_status?.web || p.client_status?.mobile || "offline",
+          activities: Array.isArray(p.activities) ? p.activities : [],
+          client_status: p.client_status || {},
+          guild_id: p.guild_id || null,
+        };
+        presences.update(uid, presence);
+        BreadCache.emitPresence(uid, presence);
+      }
+    } catch (err) {
+      console.error("[BreadCache] PRESENCE_UPDATE error", err);
+    }
+  }
+  // Relationship add/remove/update can include presence-like info for the target user
+  if (data.t === "RELATIONSHIP_ADD" || data.t === "RELATIONSHIP_UPDATE") {
+    try {
+      const rel = data.d || {};
+      const uid = String(rel.id || rel.user?.id || "");
+      if (rel.user) {
+        const { id, username, global_name, avatar, avatar_decoration_data } = rel.user;
+        if (id) user_cache.update(id, { id, username, global_name, avatar, avatar_decoration_data });
+      }
+      if (uid && rel.presence) {
+        const p = rel.presence;
+        const presence = {
+          user_id: uid,
+          status: p.status || "offline",
+          activities: Array.isArray(p.activities) ? p.activities : [],
+          client_status: p.client_status || {},
+          guild_id: null,
+        };
+        presences.update(uid, presence);
+        BreadCache.emitPresence(uid, presence);
+      }
+      if (uid && typeof rel.type === 'number') {
+        relationships.update(uid, rel);
+      }
+    } catch (err) {
+      console.error("[BreadCache] RELATIONSHIP_* ingest error", err);
+    }
+  }
+  // Some gateways may send initial GUILD_CREATE with presences
+  if (data.t === "GUILD_CREATE") {
+    try {
+      const g = data.d || {};
+      if (g.id) guild_cache.update(g.id, g);
+      if (Array.isArray(g.presences)) {
+        for (const p of g.presences) {
+          const uid = String(p.user?.id || p.user_id || p.id || "");
+          if (!uid) continue;
+          const presence = {
+            user_id: uid,
+            status: p.status || p.client_status?.desktop || p.client_status?.web || p.client_status?.mobile || "offline",
+            activities: Array.isArray(p.activities) ? p.activities : [],
+            client_status: p.client_status || {},
+            guild_id: g.id,
+          };
+          presences.update(uid, presence);
+          BreadCache.emitPresence(uid, presence);
+        }
+      }
+    } catch (err) {
+      console.error("[BreadCache] GUILD_CREATE presence ingest error", err);
+    }
+  }
 });
 
 class BreadCache {
 
   static #ready = false;
   static #readyCallbacks = [];
+  static #presenceListeners = new Set();
 
   static on_ready(fn) {
     if (this.#ready) {
@@ -185,12 +265,19 @@ class BreadCache {
     this.#readyCallbacks = [];
   }
 
+  static emitPresence(userId, presence) {
+    for (const fn of Array.from(this.#presenceListeners)) {
+      try { fn(userId, presence); } catch (e) { console.error(e); }
+    }
+  }
+
   static getMessage(id) { return message_cache.get(id); }
   static getUser(id) { return user_cache.get(id); }
   static getGuild(id) { return guild_cache.get(id); }
   static getPrivateChannel(id) { return private_channels.get(id); }
   static getRelationship(id) { return relationships.get(id); }
   static getCurrentUser() { return user; }
+  static getPresence(id) { return presences.get(id); }
 
   static cacheMessage(msg) {
     if (!msg || !msg.id) return;
@@ -216,6 +303,13 @@ class BreadCache {
     if (!r || !r.id) return;
     relationships.update(r.id, r);
   }
+  static cachePresence(p) {
+    if (!p) return;
+    const uid = String(p.user_id || p.user?.id || p.id || "");
+    if (!uid) return;
+    presences.update(uid, p);
+    BreadCache.emitPresence(uid, p);
+  }
 
   static get guilds() {
     return guild_cache.values();
@@ -227,6 +321,13 @@ class BreadCache {
   }
   static getPrivateChannels() {
     return private_channels.values();
+  }
+
+  /** Subscribe to presence changes. Returns unsubscribe. */
+  static onPresenceUpdate(fn) {
+    if (typeof fn !== "function") return () => {};
+    this.#presenceListeners.add(fn);
+    return () => this.#presenceListeners.delete(fn);
   }
 }
 window.BreadCache = BreadCache;

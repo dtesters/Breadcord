@@ -110,6 +110,7 @@ BreadAPI.ready.then(async () => {
     'lib/sortDMs.js',
     'scripts/router.js',
     'pages/FriendsTab.js',
+    'pages/FriendsActivityPanel.js',
   ];
   for (const p of preloads) {
     const s = document.createElement('script');

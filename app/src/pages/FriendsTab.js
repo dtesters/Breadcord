@@ -215,10 +215,14 @@
     const list = deriveFriends();
     for (const r of list.slice(0, 50)) {
       const u = r.user || {};
+      const presence = BreadCache?.getPresence?.(u.id) || {};
+      const status = presence.status || 'offline';
+      const primaryActivity = Array.isArray(presence.activities) && presence.activities.find(a => (a.type === 0 || a.type === 2 || a.type === 4)) || presence.activities?.[0];
+      const activityText = primaryActivity ? (primaryActivity.name || primaryActivity.state || 'Active') : (status === 'online' ? 'Online' : status);
       const card = el('div', 'activity-card');
-      card.innerHTML = `<div class="row"><img class="avatar" width="24" height="24" alt="" src="${sanitize(u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png` : '')}"><strong>${sanitize(u.global_name || u.username || '')}</strong><span class="time">just now</span></div><div class="detail">is online</div>`;
+      card.innerHTML = `<div class="row"><img class="avatar" width="24" height="24" alt="" src="${sanitize(u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png` : '')}"><strong>${sanitize(u.global_name || u.username || '')}</strong><span class="time">${sanitize(status)}</span></div><div class="detail">${sanitize(activityText)}</div>`;
       container.appendChild(card);
-      BreadAPI.emit('friends:activity:item:after', { el: card, activity: { userId: u.id, type: 'custom' } });
+      BreadAPI.emit('friends:activity:item:after', { el: card, activity: { userId: u.id, type: primaryActivity?.type || 'custom', presence } });
     }
   }
 
@@ -233,7 +237,12 @@
     renderDMsSidebar();
     // Main content
     renderFriends(friendsList);
-    renderActivity(activityList);
+    if (window.ActivityPanel?.mount) {
+      window.ActivityPanel.mount(activityList);
+    } else {
+      // fallback to inline if ActivityPanel not loaded yet
+      renderActivity(activityList);
+    }
   }
 
   function render() {
@@ -247,9 +256,9 @@
 
     const body = el('div', 'friends-body');
     const secFriends = mountSection('Friends');
-    secFriends.list.classList.add('friends-friends');
+    secFriends.list.classList.add('friends-friends', 'scroll-stable');
     const secActivity = mountSection('Activity');
-    secActivity.list.classList.add('friends-activity');
+    secActivity.list.classList.add('friends-activity', 'scroll-stable');
 
     body.appendChild(secFriends.wrap);
     body.appendChild(secActivity.wrap);

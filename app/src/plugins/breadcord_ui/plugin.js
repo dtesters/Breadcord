@@ -36,8 +36,11 @@ breadcordNav
 const breadcord_server_list = BreadUI.create_container("breadcord-server-container", "", {})
 const breadcord_channel_list = BreadUI.create_container("breadcord-channel-container", "vstack", {})
 
+const nav_current_location_el = BreadUI.create_element("nav-current-location", "", { text: "Direct Messages" })
+nav_current_location_el.onclick(() => { window.BreadRouter?.navigate('/friends'); if (window.FriendsTab?.mount) window.FriendsTab.mount(); });
+
 breadcord_channel_list
-  .add(BreadUI.create_element("nav-current-location", "", { text: "Direct Messages" }))
+  .add(nav_current_location_el)
   .add(BreadUI.create_container("sidebar-channels-list", "", {}))
 
 breadcordApp
@@ -62,7 +65,12 @@ function handleRoute(path) {
   if (path === '/friends') {
     const nav_current_location = document.querySelector('[data-type="nav-current-location"]');
     if (nav_current_location) nav_current_location.innerText = 'Friends';
+    const host = document.querySelector('[data-container-id="breadcord-message-container"]');
+    if (host) host.classList.add('friends-page');
     if (window.FriendsTab?.mount) window.FriendsTab.mount();
+  } else {
+    const host = document.querySelector('[data-container-id="breadcord-message-container"]');
+    if (host) host.classList.remove('friends-page');
   }
 }
 window.BreadRouter?.onChange(handleRoute);
@@ -224,6 +232,8 @@ function getChannelIcon(channel, guild) {
 
 function switch_guild(guild_id) {
   console.log(`Switching to guild ${guild_id}`);
+  // change route so returning to /friends triggers a re-render
+  window.BreadRouter?.navigate(`/guild/${guild_id}`);
   // grab this element <div data-type="nav-current-location">Direct Messages</div>
   const nav_current_location = document.querySelector('[data-type="nav-current-location"]');
   const guild = BreadCache.getGuild(guild_id);
@@ -232,13 +242,9 @@ function switch_guild(guild_id) {
   } else {
     nav_current_location.innerText = "Unknown Guild";
   }
-  const sidebar_channels_list = document.querySelector('[data-container-id="sidebar-channels-list"]');
   const sidebar_channels_list_ui = BreadUI.get_container("sidebar-channels-list");
-  // remove everything from it
-  while (sidebar_channels_list.firstChild) {
-    sidebar_channels_list.removeChild(sidebar_channels_list.firstChild);
-  }
-  const channels = guild.channels;
+  if (sidebar_channels_list_ui) sidebar_channels_list_ui.clear();
+  const channels = guild?.channels || [];
   const sorted_channels = sort_channels(channels);
 
   console.log("Sorted Channels:", sorted_channels);

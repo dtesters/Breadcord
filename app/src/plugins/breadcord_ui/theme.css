@@ -231,6 +231,11 @@ html.dark, body.dark {
   background-color: var(--color-background);
 }
 
+/* lock the main container*/
+[data-container-id="breadcord-message-container"].friends-page {
+  overflow: hidden;
+}
+
 /* Base guild icon styling */
 [data-type^="guild-"] {
   background-size: cover;
@@ -634,13 +639,14 @@ html.dark, body.dark {
 .friends-tab { background:transparent; color:var(--color-text); border:none; padding:6px 10px; border-radius:6px; cursor:pointer; }
 .friends-tab[aria-selected="true"] { background: var(--color-muted-secondary); }
 .friends-search { margin-left:auto; background:var(--color-surface); border:1px solid var(--color-muted); color:var(--color-text); padding:6px 8px; border-radius:6px; }
-.friends-body { display:flex; gap:12px; padding:12px; }
-.friends-section { flex:1; display:flex; flex-direction:column; gap:8px; }
+.friends-body { display:flex; gap:12px; padding:12px; align-items:stretch; height: 100%; box-sizing: border-box; }
+.friends-section { flex:1; display:flex; flex-direction:column; gap:8px; min-height:0; }
 .friends-section-title { font-size:12px; text-transform:uppercase; color:var(--color-nav-text); letter-spacing:0.04em; }
-.friends-list { display:flex; flex-direction:column; gap:6px; }
+.friends-list { display:flex; flex-direction:column; gap:6px; overflow:auto; padding-right:4px; min-height:0; }
 .friend-row, .dm-row { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; background:transparent; }
 .friend-row:hover, .dm-row:hover { background: var(--color-muted-secondary); }
 .friend-row .avatar, .dm-row .avatar { width:32px; height:32px; border-radius:50%; background: var(--color-surface); }
 .activity-card { background: var(--color-surface); border:1px solid var(--color-muted); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:6px; }
+.friends-activity .activity-card { margin-bottom: 6px; }
 .activity-card .row { display:flex; align-items:center; gap:8px; color:var(--color-text); }
 .activity-card .time { margin-left:auto; color:var(--color-nav-text); font-size:11px; }
